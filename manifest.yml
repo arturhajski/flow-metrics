@@ -1,0 +1,27 @@
+modules:
+  jira:projectPage:
+    - key: flow-metrics-hello-world-project-page
+      resource: main
+      resolver:
+        function: resolver
+      title: flow-metrics
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/hello-world/build
+    tunnel:
+      port: 3000
+permissions:
+  content:
+    styles:
+      - 'unsafe-inline'
+    scripts:
+      - 'unsafe-eval'
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/8a2bd61d-2485-4890-8b3c-10b463a5bdda
