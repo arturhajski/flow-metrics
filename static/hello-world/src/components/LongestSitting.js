@@ -1,4 +1,5 @@
 import React from 'react';
+import { router } from '@forge/bridge';
 
 function daysColor(days) {
   if (days >= 10) return '#A32D2D';
@@ -6,12 +7,12 @@ function daysColor(days) {
   return '#3B6D11';
 }
 
-export default function LongestSitting({ longestSitting, cloudId }) {
+export default function LongestSitting({ longestSitting }) {
   if (!longestSitting || longestSitting.length === 0) return null;
 
-  const baseUrl = cloudId
-    ? `https://${cloudId}.atlassian.net/browse`
-    : 'https://arturhajski.atlassian.net/browse';
+  const openIssue = (key) => {
+    router.navigate(`/browse/${key}`);
+  };
 
   return (
     <div style={{ background: '#f9fafb', borderRadius: 8, padding: '16px 20px', border: '1px solid #f0f0f0' }}>
@@ -25,14 +26,15 @@ export default function LongestSitting({ longestSitting, cloudId }) {
             padding: '7px 0', borderBottom: '1px solid #f0f0f0',
           }}>
             {/* Issue key */}
-            <a
-              href={`${baseUrl}/${issue.key}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 12, color: '#378ADD', fontWeight: 500, whiteSpace: 'nowrap', textDecoration: 'none', minWidth: 70 }}
+            <span
+              onClick={() => openIssue(issue.key)}
+              style={{
+                fontSize: 12, color: '#378ADD', fontWeight: 500,
+                whiteSpace: 'nowrap', minWidth: 70, cursor: 'pointer',
+              }}
             >
               {issue.key}
-            </a>
+            </span>
 
             {/* Summary */}
             <span style={{
