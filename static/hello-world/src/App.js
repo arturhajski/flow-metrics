@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { invoke, view } from '@forge/bridge';
 
 import LoadingState from './components/LoadingState';
@@ -37,7 +37,7 @@ export default function App() {
     });
   }, []);
 
-  // Fetch metadata once
+  // Fetch metadata once per project
   useEffect(() => {
     if (!projectKey) return;
     invoke('getProjectMetadata', { projectKey }).then(res => {
@@ -45,33 +45,23 @@ export default function App() {
     }).catch(() => {});
   }, [projectKey]);
 
-  // Fetch WIP data when projectKey or days changes
+  // Fetch WIP data — re-runs when projectKey, days, or issueTypeFilter changes
   const fetchWipData = useCallback(() => {
     if (!projectKey) return;
     setLoading(true);
     setError(null);
-    invoke('getWipData', { projectKey, days })
+    invoke('getWipData', { projectKey, days, issueTypeIds: issueTypeFilter })
       .then(res => {
         if (res.error) setError(res.error);
         else setWipData(res.data);
       })
       .catch(err => setError(err.message || 'Failed to load data'))
       .finally(() => setLoading(false));
-  }, [projectKey, days]);
+  }, [projectKey, days, issueTypeFilter]);
 
   useEffect(() => {
     fetchWipData();
   }, [fetchWipData]);
-
-  // Client-side filter by issue type (filters longestSitting)
-  const filteredData = useMemo(() => {
-    if (!wipData || issueTypeFilter === 'all') return wipData;
-    const typeName = metadata?.issueTypes?.find(t => t.id === issueTypeFilter)?.name;
-    return {
-      ...wipData,
-      longestSitting: wipData.longestSitting.filter(i => i.issueTypeName === typeName),
-    };
-  }, [wipData, issueTypeFilter, metadata]);
 
   const handleDaysChange = (newDays) => {
     setIssueTypeFilter('all');
@@ -108,27 +98,27 @@ export default function App() {
         <ErrorState message={error} onRetry={fetchWipData} />
       )}
 
-      {!loading && !error && filteredData && (
+      {!loading && !error && wipData && (
         <>
           <KPICards
-            stats={filteredData.stats}
-            series={filteredData.series}
+            stats={wipData.stats}
+            series={wipData.series}
             days={days}
           />
 
           <DailyWIPChart
-            series={filteredData.series}
-            stats={filteredData.stats}
+            series={wipData.series}
+            stats={wipData.stats}
           />
 
           <InsightsPanel
-            stats={filteredData.stats}
-            statusBreakdown={filteredData.statusBreakdown}
+            stats={wipData.stats}
+            statusBreakdown={wipData.statusBreakdown}
           />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <StatusBreakdown statusBreakdown={filteredData.statusBreakdown} />
-            <LongestSitting longestSitting={filteredData.longestSitting} cloudId={cloudId} />
+            <StatusBreakdown statusBreakdown={wipData.statusBreakdown} />
+            <LongestSitting longestSitting={wipData.longestSitting} cloudId={cloudId} />
           </div>
         </>
       )}

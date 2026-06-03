@@ -186,13 +186,13 @@ function wasInProgressOnDate(issue, transitions, date, inProgressIds) {
   return inProgressIds.includes(currentStatusId);
 }
 
-async function buildWipSeries(projectKey, days, inProgressIds) {
+async function buildWipSeries(projectKey, days, inProgressIds, issueTypeName = 'all') {
   const today = isoDate(Date.now());
   const fromDate = addDays(today, -days + 1);
 
-  // Fetch issues updated in last (days + buffer) to catch issues that transitioned before window
+  const typeJql = issueTypeName !== 'all' ? ` AND issuetype = "${issueTypeName}"` : '';
   const issues = await jiraGetAllPages('/rest/api/3/search/jql', {
-    jql: `project = ${projectKey} AND updated >= -${days + 14}d ORDER BY updated ASC`,
+    jql: `project = ${projectKey}${typeJql} AND updated >= -${days + 14}d ORDER BY updated ASC`,
     fields: 'summary,status,issuetype,created,updated,assignee',
     expand: 'changelog',
   });
@@ -231,12 +231,12 @@ resolver.define('getProjectMetadata', async (req) => {
 
 resolver.define('getWipData', async (req) => {
   try {
-    const { projectKey, days = 14 } = req.payload;
+    const { projectKey, days = 14, issueTypeIds = 'all' } = req.payload;
     if (!projectKey) return { error: 'projectKey is required' };
     validateProjectKey(projectKey);
 
-    // Get in-progress status IDs
-    const { statuses } = await loadProjectMetadata(projectKey);
+    // Get in-progress status IDs + resolve issue type name for JQL
+    const { statuses, issueTypes } = await loadProjectMetadata(projectKey);
     const inProgressIds = statuses
       .filter(s => s.category === 'indeterminate')
       .map(s => s.id);
@@ -245,9 +245,19 @@ resolver.define('getWipData', async (req) => {
       return { error: 'No in-progress statuses found for this project' };
     }
 
-    // Check cache
+    // Resolve issue type ID → name for JQL (name is more reliable than ID in Jira JQL)
+    const issueTypeName = issueTypeIds === 'all'
+      ? 'all'
+      : (issueTypes.find(t => t.id === issueTypeIds)?.name ?? null);
+
+    if (issueTypeIds !== 'all' && !issueTypeName) {
+      return { error: `Unknown issue type id: ${issueTypeIds}` };
+    }
+
+    // Cache key includes issue type filter so each combination is cached separately.
+    const typeKey = issueTypeName === 'all' ? 'all' : issueTypeName;
     const today = isoDate(Date.now());
-    const cacheKey = `wip-${projectKey}-${today}-${days}`;
+    const cacheKey = `wip-${projectKey}-${today}-${days}-${typeKey}`;
     const cached = await storage.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
@@ -256,15 +266,17 @@ resolver.define('getWipData', async (req) => {
       }
     }
 
-    // Build WIP series
-    const { series, issues } = await buildWipSeries(projectKey, days, inProgressIds);
+    // Build WIP series — filter by issue type if requested
+    const { series, issues } = await buildWipSeries(projectKey, days, inProgressIds, issueTypeName);
     const stats = calculateStats(series);
 
-    // Current WIP per status (live query, no changelog needed)
+    // Current WIP per status
     const inProgressJql = inProgressIds.map(id => `status = ${id}`).join(' OR ');
+    const typeJql = issueTypeName !== 'all' ? ` AND issuetype = "${issueTypeName}"` : '';
     const currentIssues = await jiraGetAllPages('/rest/api/3/search/jql', {
-      jql: `project = ${projectKey} AND (${inProgressJql})`,
+      jql: `project = ${projectKey} AND (${inProgressJql})${typeJql}`,
       fields: 'summary,status,issuetype,created,assignee',
+      expand: 'changelog',
     });
 
     const statusMap = {};
@@ -284,18 +296,16 @@ resolver.define('getWipData', async (req) => {
     const longestSitting = currentIssues
       .map(issue => {
         const transitions = getStatusTransitions(issue);
-        // Find last transition INTO in-progress
         const inTransitions = transitions
           .filter(t => inProgressIds.includes(t.toId))
           .sort((a, b) => b.timestamp - a.timestamp);
         const lastEntered = inTransitions[0]?.timestamp ?? new Date(issue.fields.created).getTime();
-        const daysInProgress = Math.floor((Date.now() - lastEntered) / 86400000);
         return {
           key: issue.key,
           summary: issue.fields.summary,
           statusName: issue.fields.status.name,
           issueTypeName: issue.fields.issuetype?.name ?? 'Unknown',
-          daysInProgress,
+          daysInProgress: Math.floor((Date.now() - lastEntered) / 86400000),
         };
       })
       .sort((a, b) => b.daysInProgress - a.daysInProgress)
