@@ -23,6 +23,7 @@ export default function App() {
   const [wipData, setWipData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Get project context from Jira
   useEffect(() => {
@@ -77,6 +78,16 @@ export default function App() {
     setDays(newDays);
   };
 
+  const handleRefresh = useCallback(() => {
+    if (!projectKey || refreshing) return;
+    setRefreshing(true);
+    invoke('refreshData', { projectKey })
+      .finally(() => {
+        setRefreshing(false);
+        fetchWipData();
+      });
+  }, [projectKey, refreshing, fetchWipData]);
+
   return (
     <div style={{ fontFamily: FONT, padding: '16px 20px', maxWidth: 900, margin: '0 auto' }}>
       <Header
@@ -87,6 +98,8 @@ export default function App() {
         issueTypes={metadata?.issueTypes}
         issueTypeFilter={issueTypeFilter}
         onIssueTypeFilterChange={setIssueTypeFilter}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
       />
 
       {loading && <LoadingState />}

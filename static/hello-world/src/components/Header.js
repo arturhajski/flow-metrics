@@ -6,7 +6,7 @@ const RANGES = [
   { label: '30d', value: 30 },
 ];
 
-export default function Header({ projectKey, lastSyncedAt, days, onDaysChange, issueTypes, issueTypeFilter, onIssueTypeFilterChange }) {
+export default function Header({ projectKey, lastSyncedAt, days, onDaysChange, issueTypes, issueTypeFilter, onIssueTypeFilterChange, onRefresh, refreshing }) {
   const syncLabel = lastSyncedAt
     ? `Synced ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     : null;
@@ -42,6 +42,23 @@ export default function Header({ projectKey, lastSyncedAt, days, onDaysChange, i
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
+        )}
+
+        {/* Refresh button */}
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            title="Force refresh data"
+            style={{
+              padding: '4px 10px', fontSize: 13, borderRadius: 6,
+              border: '1px solid #d1d5db', background: '#fff',
+              color: refreshing ? '#9ca3af' : '#374151',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {refreshing ? '⟳' : '↺'}
+          </button>
         )}
 
         {/* Date range segmented control */}
