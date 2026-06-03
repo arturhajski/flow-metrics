@@ -1,24 +1,45 @@
 modules:
   jira:projectPage:
-    - key: flow-metrics-hello-world-project-page
+    - key: haisight-wip-page
       resource: main
       resolver:
         function: resolver
-      title: flow-metrics
+      title: "WIP Analytics"
+      icon: https://your-cdn/haisight-icon.png
+  jira:dashboardGadget:
+    - key: haisight-wip-gadget
+      resource: gadget
+      resolver:
+        function: resolver
+      title: "Haisight WIP"
+      description: "Work in Progress analytics for your team"
+      thumbnail: https://your-cdn/haisight-thumbnail.png
+  trigger:
+    - key: haisight-daily-sync
+      function: daily-sync
+      events:
+        - avi:forge:scheduled:daily
   function:
     - key: resolver
       handler: index.handler
+    - key: daily-sync
+      handler: scheduler.handler
 resources:
   - key: main
     path: static/hello-world/build
     tunnel:
       port: 3000
+  - key: gadget
+    path: static/gadget/build
 permissions:
+  scopes:
+    - read:jira-work
+    - read:jira-user
   content:
     styles:
-      - 'unsafe-inline'
+      - unsafe-inline
     scripts:
-      - 'unsafe-eval'
+      - unsafe-eval
 app:
   runtime:
     name: nodejs24.x
